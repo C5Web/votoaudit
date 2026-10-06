@@ -1,0 +1,631 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/votoaudit/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ============ Auth (Auth.js) ============
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  collector     Collector?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============ Domínio VotoAudit ============
+
+model Election {
+  id             String             @id @default(cuid())
+  year           Int
+  round          Int
+  electionDate   DateTime
+  status         ElectionStatus     @default(UPCOMING)
+  officialSource String?
+  createdAt      DateTime           @default(now())
+  sections       ElectionSection[]
+  events         AuditEvent[]
+  artifacts      OfficialArtifact[]
+
+  @@unique([year, round])
+}
+
+enum ElectionStatus {
+  UPCOMING
+  ACTIVE
+  FINALIZED
+}
+
+model ElectionSection {
+  id             String                  @id @default(cuid())
+  electionId     String
+  election       Election                @relation(fields: [electionId], references: [id])
+  uf             String
+  municipality   String
+  zone           String
+  section        String
+  pollingPlace   String?
+  address        String?
+  eligibleVoters Int?
+  status         SectionStatus           @default(PENDING)
+  evidences      Evidence[]
+  bulletins      BallotBoxBulletin[]
+  incidents      Incident[]
+  validations    CrossValidationResult[]
+  zeresimas      Zeresima[]
+  createdAt      DateTime                @default(now())
+
+  @@unique([electionId, uf, zone, section])
+  @@index([uf, zone])
+  @@index([status])
+}
+
+enum SectionStatus {
+  PENDING
+  PARTIAL
+  VERIFIED
+  DIVERGENCE
+  NO_EVIDENCE
+}
+
+model Collector {
+  id                String              @id @default(cuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName       String
+  role              CollectorRole       @default(CITIZEN)
+  verificationLevel VerificationLevel   @default(EMAIL_VERIFIED)
+  organization      String?
+  credentialStatus  CredentialStatus    @default(NONE)
+  submittedCount    Int                 @default(0)
+  corroboratedCount Int                 @default(0)
+  rejectedCount     Int                 @default(0)
+  uf                String?
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  suspendedById     String?
+  evidences         Evidence[]
+  bulletins         BallotBoxBulletin[]
+  verificationRequests VerificationRequest[] @relation("RequestOwner")
+  reviewedRequests  VerificationRequest[] @relation("RequestReviewer")
+  invitesCreated    Invite[]            @relation("InviteCreator")
+  pushSubscriptions PushSubscription[]
+  notificationPref  NotificationPreference?
+  notifications     Notification[]
+  createdAt         DateTime            @default(now())
+}
+
+enum CollectorRole {
+  CITIZEN
+  PARTY_INSPECTOR
+  PARTY_REP
+  OAB_LAWYER
+  PUBLIC_PROSECUTOR
+  PUBLIC_DEFENDER
+  AUDITOR
+  ENTITY_REP
+  INTEGRITY_OBSERVER
+  PRESS
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+// ============ Verificação, convites e auditoria administrativa ============
+
+model VerificationRequest {
+  id                 String                    @id @default(cuid())
+  collectorId        String
+  collector          Collector                 @relation("RequestOwner", fields: [collectorId], references: [id], onDelete: Cascade)
+  kind               VerificationKind
+  requestedRole      CollectorRole?
+  uf                 String?
+  fullName           String?
+  organization       String?
+  details            Json?
+  documents          Json?
+  status             VerificationRequestStatus @default(PENDING)
+  decisionReason     String?
+  reviewedById       String?
+  reviewedBy         Collector?                @relation("RequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  documentsPurgedAt  DateTime?
+  createdAt          DateTime                  @default(now())
+
+  @@index([status, kind])
+  @@index([collectorId])
+}
+
+enum VerificationKind {
+  IDENTITY
+  CREDENTIAL
+}
+
+enum VerificationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model Invite {
+  id           String        @id @default(cuid())
+  tokenHash    String        @unique
+  email        String
+  role         CollectorRole
+  organization String?
+  createdById  String
+  createdBy    Collector     @relation("InviteCreator", fields: [createdById], references: [id])
+  createdAt    DateTime      @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+  usedByUserId String?
+  revokedAt    DateTime?
+
+  @@index([email])
+}
+
+/// Registro append-only e encadeado por hash. Um trigger no banco bloqueia UPDATE/DELETE/TRUNCATE.
+model AdminAuditLog {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime
+  actorId     String?
+  actorEmail  String?
+  actorRole   String?
+  action      String
+  targetType  String?
+  targetId    String?
+  details     Json?
+  ip          String?
+  userAgent   String?
+  prevHash    String
+  hash        String   @unique
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+enum VerificationLevel {
+  ANONYMOUS
+  EMAIL_VERIFIED
+  IDENTITY_VERIFIED
+  CREDENTIAL_VERIFIED
+}
+
+enum CredentialStatus {
+  NONE
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model Evidence {
+  id                 String                   @id @default(cuid())
+  electionId         String
+  sectionId          String
+  section            ElectionSection          @relation(fields: [sectionId], references: [id])
+  type               EvidenceType
+  sourceType         EvidenceSourceType
+  collectorId        String?
+  collector          Collector?               @relation(fields: [collectorId], references: [id])
+  deviceIdHash       String?
+  latitude           Float?
+  longitude          Float?
+  locationAccuracy   Float?
+  locationCompatible Boolean?
+  originalFileKey    String?
+  sha256Original     String
+  fileSizeBytes      BigInt?
+  mimeType           String?
+  qrRawPayload       String?
+  qrParsedData       Json?
+  qrSignatureValid   Boolean?
+  capturedAt         DateTime
+  receivedAt         DateTime                 @default(now())
+  processedAt        DateTime?
+  validationStatus   EvidenceValidationStatus @default(RECEIVED)
+  corroborationCount Int                      @default(0)
+  provenanceLevel    ProvenanceLevel          @default(AUTHENTICATED)
+  notes              String?
+  createdAt          DateTime                 @default(now())
+
+  @@index([sectionId])
+  @@index([collectorId])
+}
+
+enum EvidenceType {
+  BU
+  ZERESIMA
+  AVPART
+  INTEGRITY_TEST
+  MINUTES
+  INCIDENT_PHOTO
+  VIDEO
+  REPORT
+  HASH_REPORT
+}
+
+enum EvidenceSourceType {
+  CITIZEN_QR
+  CITIZEN_PHOTO
+  FISCAL_PHOTO
+  AUDITOR_REPORT
+  OFFICIAL_PUBLICATION
+  AUTOMATIC_INGEST
+}
+
+enum EvidenceValidationStatus {
+  RECEIVED
+  PROCESSING
+  VALIDATED
+  REJECTED
+  NEEDS_REVIEW
+}
+
+enum ProvenanceLevel {
+  ANONYMOUS
+  AUTHENTICATED
+  VERIFIED
+  CREDENTIALED
+}
+
+model BallotBoxBulletin {
+  id               String             @id @default(cuid())
+  electionId       String
+  sectionId        String
+  section          ElectionSection    @relation(fields: [sectionId], references: [id])
+  evidenceId       String?
+  collectorId      String?
+  collector        Collector?         @relation(fields: [collectorId], references: [id])
+  ballotBoxId      String?
+  generatedAt      DateTime?
+  eligibleVoters   Int?
+  turnout          Int?
+  blankVotes       Int?
+  nullVotes        Int?
+  candidateVotes   Json
+  qrPayload        String?
+  sha256           String?
+  source           BUSource
+  validationResult BUValidationResult @default(PENDING)
+  createdAt        DateTime           @default(now())
+
+  @@index([sectionId])
+}
+
+enum BUSource {
+  CITIZEN
+  FISCAL
+  OFFICIAL_TSE
+}
+
+enum BUValidationResult {
+  PENDING
+  MATCH
+  DIVERGENCE
+  NO_OFFICIAL
+}
+
+model Zeresima {
+  id             String          @id @default(cuid())
+  electionId     String
+  sectionId      String
+  section        ElectionSection @relation(fields: [sectionId], references: [id])
+  evidenceId     String?
+  ballotBoxId    String?
+  issuedAt       DateTime?
+  candidateVotes Json
+  totalVotes     Int
+  isConsistent   Boolean
+  collectorId    String?
+  createdAt      DateTime        @default(now())
+}
+
+model AVPARTReport {
+  id                    String                 @id @default(cuid())
+  eventId               String?
+  event                 AuditEvent?            @relation(fields: [eventId], references: [id])
+  tre                   String
+  uf                    String
+  ballotBoxId           String?
+  mediaId               String?
+  collectedBy           String?
+  collectorOrganization String?
+  originalDocumentKey   String?
+  documentSha256        String?
+  files                 Json
+  signaturesValid       Boolean?
+  comparisonResult      AVPARTComparisonResult @default(PENDING)
+  createdAt             DateTime               @default(now())
+}
+
+enum AVPARTComparisonResult {
+  MATCH
+  MISMATCH
+  PARTIAL
+  PENDING
+}
+
+model AuditEvent {
+  id                String           @id @default(cuid())
+  electionId        String
+  election          Election         @relation(fields: [electionId], references: [id])
+  type              AuditEventType
+  officialOrganizer String?
+  uf                String
+  municipality      String?
+  venue             String?
+  address           String?
+  scheduledStart    DateTime
+  scheduledEnd      DateTime?
+  publicAccess      Boolean          @default(true)
+  officialSourceUrl String?
+  status            AuditEventStatus @default(SCHEDULED)
+  externalKey       String?
+  avpartReports     AVPARTReport[]
+  createdAt         DateTime         @default(now())
+}
+
+enum AuditEventType {
+  INTEGRITY_TEST
+  BIOMETRIC_INTEGRITY_TEST
+  BALLOT_BOX_PREPARATION
+  TRANSMISSION_AUDIT
+  TOTALIZATION_AUDIT
+  SOURCE_INSPECTION
+  OTHER
+}
+
+enum AuditEventStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Incident {
+  id                String           @id @default(cuid())
+  electionId        String
+  sectionId         String
+  section           ElectionSection  @relation(fields: [sectionId], references: [id])
+  severity          IncidentSeverity
+  category          IncidentCategory
+  evidenceIds       String[]
+  automatedFindings Json?
+  humanReview       Json?
+  status            IncidentStatus   @default(DETECTED)
+  detectedAt        DateTime         @default(now())
+  resolution        String?
+  createdAt         DateTime         @default(now())
+
+  @@index([sectionId])
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentCategory {
+  BU_DIVERGENCE
+  ZERESIMA_INCONSISTENCY
+  AVPART_MISMATCH
+  QR_INVALID
+  DUPLICATE_SUBMISSION
+  SUSPICIOUS_METADATA
+  OTHER
+}
+
+enum IncidentStatus {
+  DETECTED
+  AUTOMATED_CHECK
+  NEEDS_REVIEW
+  CORROBORATING
+  RESOLVED
+  CONFIRMED
+  INCONCLUSIVE
+}
+
+model CrossValidationResult {
+  id              String           @id @default(cuid())
+  sectionId       String
+  section         ElectionSection  @relation(fields: [sectionId], references: [id])
+  electionId      String
+  evidenceCount   Int              @default(0)
+  sourcesCount    Int              @default(0)
+  concordantCount Int              @default(0)
+  divergentCount  Int              @default(0)
+  officialBuId    String?
+  result          ValidationResult @default(PENDING)
+  confidenceLevel ConfidenceLevel  @default(LOW)
+  diffDetails     Json?
+  autoIncidentId  String?
+  computedAt      DateTime         @default(now())
+
+  @@index([sectionId, computedAt])
+}
+
+enum ValidationResult {
+  CORROBORATED
+  DIVERGENCE_FOUND
+  INSUFFICIENT_EVIDENCE
+  PENDING
+}
+
+enum ConfidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model OfficialArtifact {
+  id             String       @id @default(cuid())
+  electionId     String
+  election       Election     @relation(fields: [electionId], references: [id])
+  type           ArtifactType
+  name           String
+  sha256Official String?
+  sha512Official String?
+  sourceUrl      String?
+  fetchedAt      DateTime     @default(now())
+  rawData        Json?
+}
+
+enum ArtifactType {
+  SYSTEM_HASH
+  SEALED_RELEASE
+  OFFICIAL_BU
+  TOTALIZATION_DATA
+  CANDIDATES_DATA
+  RDV
+  LOG_URNA
+}
+
+model JobQueue {
+  id            Int       @id @default(autoincrement())
+  type          JobType
+  payload       Json
+  status        JobStatus @default(PENDING)
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3)
+  createdAt     DateTime  @default(now())
+  nextAttemptAt DateTime  @default(now())
+  completedAt   DateTime?
+  errorMessage  String?
+}
+
+enum JobType {
+  VALIDATE_BU
+  CROSS_VALIDATE_SECTION
+  INGEST_TSE_DATA
+  PROCESS_QR
+  GENERATE_INCIDENT
+  NOTIFY_COLLECTOR
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+// ---------------------------------------------------------------
+// Notificações (push web + e-mail de reserva). Backend pronto para o app mobile.
+// ---------------------------------------------------------------
+
+model PushSubscription {
+  id          String     @id @default(cuid())
+  collectorId String?
+  collector   Collector? @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  endpoint    String     @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  uf          String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  lastUsedAt  DateTime?
+
+  @@index([collectorId])
+  @@index([active])
+}
+
+model NotificationPreference {
+  id                  String    @id @default(cuid())
+  collectorId         String    @unique
+  collector           Collector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  eventPublished      Boolean   @default(true)
+  eventReminder       Boolean   @default(true)
+  incidentUpdates     Boolean   @default(false)
+  reminderHoursBefore Int       @default(24)
+  emailFallback       Boolean   @default(true)
+  updatedAt           DateTime  @updatedAt
+}
+
+model Notification {
+  id          String              @id @default(cuid())
+  collectorId String?
+  collector   Collector?          @relation(fields: [collectorId], references: [id], onDelete: SetNull)
+  type        NotificationType
+  channel     NotificationChannel
+  title       String
+  body        String
+  data        Json?
+  dedupeKey   String              @unique
+  status      NotificationStatus  @default(PENDING)
+  error       String?
+  createdAt   DateTime            @default(now())
+  sentAt      DateTime?
+
+  @@index([status])
+  @@index([collectorId])
+  @@index([type])
+}
+
+enum NotificationType {
+  EVENT_PUBLISHED
+  EVENT_REMINDER
+  INCIDENT_UPDATE
+}
+
+enum NotificationChannel {
+  WEBPUSH
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}

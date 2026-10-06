@@ -1,0 +1,33 @@
+# Dependências
+**/node_modules
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+
+# Builds e cache
+.next
+.build
+.cache
+dist
+out
+*.tsbuildinfo
+next-env.d.ts
+
+# Variáveis de ambiente e segredos (NUNCA commitar)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Arquivos internos da plataforma (não publicar)
+.abacus.donotdelete
+.deploy
+.logs
+.project_instructions.md
+
+# Logs e temporários
+*.log
+*.nfs*
+*.tmp
+.DS_Store
