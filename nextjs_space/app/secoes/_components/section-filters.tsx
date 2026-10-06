@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Filter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -68,9 +69,15 @@ export function SectionFilters({ options }: { options: FilterOptions }) {
             <option key={s.v} value={s.v}>{s.l}</option>
           ))}
         </select>
-        <Button variant="outline" onClick={() => router.push('/secoes')} disabled={!uf && !municipality && !zone && !status}>
-          <X className="mr-1 h-4 w-4" /> Limpar
-        </Button>
+        {uf || municipality || zone || status ? (
+          <Button asChild variant="outline">
+            <Link href="/secoes"><X className="mr-1 h-4 w-4" /> Limpar</Link>
+          </Button>
+        ) : (
+          <Button variant="outline" disabled>
+            <X className="mr-1 h-4 w-4" /> Limpar
+          </Button>
+        )}
       </div>
     </div>
   )
