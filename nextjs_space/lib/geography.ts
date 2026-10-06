@@ -79,7 +79,9 @@ export function mapGeographyRow(fields: string[]): GeographyRow | null {
   if (uf.length !== 2) return null; // ignora linhas de exterior/ZZ se indesejadas? mantém se 2 letras
   return {
     uf,
-    municipality,
+    // Município sempre em caixa alta (forma oficial do TSE), evitando duplicidade
+    // de nomes por diferença de capitalização no catálogo.
+    municipality: municipality.toUpperCase(),
     zone: zoneRaw.padStart(4, '0'),
     section: sectionRaw.padStart(4, '0'),
     pollingPlace: cleanText(fields[GEO_COLUMNS.pollingPlace]),

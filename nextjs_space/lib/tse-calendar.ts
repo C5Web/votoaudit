@@ -35,7 +35,7 @@ interface CalendarItem {
 const br = (d: string) => `${d}-03:00`
 
 function nationalItems(): CalendarItem[] {
-  const base = { uf: 'DF', organizer: 'TSE', municipality: 'Brasília', source: TSE_CALENDAR_URL }
+  const base = { uf: 'DF', organizer: 'TSE', municipality: 'BRASÍLIA', source: TSE_CALENDAR_URL }
   return [
     { ...base, key: 'tse:verificacao-totalizacao', round: 1, type: 'TOTALIZATION_AUDIT', venue: 'Sede do TSE — Cerimônia de verificação do sistema de totalização, receptor de arquivos e transportador', start: br('2026-09-03T10:00:00'), end: br('2026-09-03T18:00:00'), publicAccess: false },
     { ...base, key: 'tse:lacracao-sistemas', round: 1, type: 'SOURCE_INSPECTION', venue: 'Sede do TSE — Assinatura digital e lacração dos sistemas eleitorais (prazo-limite do calendário)', start: br('2026-09-14T10:00:00'), end: br('2026-09-14T18:00:00'), publicAccess: false },

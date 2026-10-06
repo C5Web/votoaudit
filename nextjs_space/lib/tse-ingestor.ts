@@ -48,7 +48,8 @@ const ROWS: Row[] = [
 ]
 
 export const SEED_SECTIONS: SeedSection[] = ROWS.flatMap(([uf, municipality, zone, sections, pollingPlace, address]: Row) =>
-  sections.map((section: string) => ({ uf, municipality, zone, section, pollingPlace, address }))
+  // Município sempre em caixa alta, padronizado com a forma oficial do TSE.
+  sections.map((section: string) => ({ uf, municipality: municipality.toUpperCase(), zone, section, pollingPlace, address }))
 )
 
 export interface GeneratedBU {
