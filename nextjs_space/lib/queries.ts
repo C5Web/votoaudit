@@ -259,7 +259,7 @@ export async function getSectionDetail(id: string) {
     },
   })
   if (!section) return null
-  const [bus, validation] = await Promise.all([getSectionBUs(id), getLatestValidation(id)])
+  const [bus, validation, urn] = await Promise.all([getSectionBUs(id), getLatestValidation(id), getSectionUrnArtifacts(id)])
   return {
     id: section.id,
     uf: section.uf,
@@ -273,6 +273,8 @@ export async function getSectionDetail(id: string) {
     officialBU: bus.official,
     citizenBUs: bus.citizen,
     validation,
+    rdvs: urn.rdvs,
+    urnLogs: urn.urnLogs,
     incidents: (section.incidents ?? []).map((i) => ({
       id: i.id,
       severity: i.severity,
@@ -287,6 +289,93 @@ export async function getSectionDetail(id: string) {
       issuedAt: z.issuedAt?.toISOString() ?? null,
     })),
   }
+}
+
+// ------------------------------------------------------------------
+// RDV e Log de Urna por seção (artefatos oficiais ingeridos)
+// ------------------------------------------------------------------
+
+export interface SectionRdvView {
+  id: string
+  name: string
+  fetchedAt: string
+  sha256: string | null
+  sourceUrl: string | null
+  format: string | null
+  office: string | null
+  ballotCount: number
+  tally: { candidateVotes: Record<string, number>; blankVotes: number; nullVotes: number; totalVotes: number } | null
+  reconciliation: {
+    status: 'CONFERE' | 'DIVERGENCIA' | 'INSUFICIENTE'
+    note: string
+    diffs: { key: string; rdv: number; official: number }[]
+  } | null
+  warnings: string[]
+}
+
+export interface SectionUrnLogView {
+  id: string
+  name: string
+  fetchedAt: string
+  sha256: string | null
+  sourceUrl: string | null
+  format: string | null
+  lineCount: number
+  flags: { zeresimaEmitted: boolean; votingStarted: boolean; votingEnded: boolean; buEmitted: boolean }
+  notable: { timestamp: string | null; level: string | null; tag: string | null; message: string }[]
+  warnings: string[]
+}
+
+/** Lê os RDVs e Logs de Urna ingeridos para a seção (gravados como OfficialArtifact). */
+export async function getSectionUrnArtifacts(sectionId: string): Promise<{ rdvs: SectionRdvView[]; urnLogs: SectionUrnLogView[] }> {
+  const artifacts = await prisma.officialArtifact.findMany({
+    where: {
+      type: { in: ['RDV', 'LOG_URNA'] },
+      rawData: { path: ['sectionId'], equals: sectionId },
+    },
+    orderBy: { fetchedAt: 'desc' },
+  })
+  const rdvs: SectionRdvView[] = []
+  const urnLogs: SectionUrnLogView[] = []
+  for (const a of artifacts) {
+    const raw = (a.rawData ?? {}) as Record<string, unknown>
+    if (a.type === 'RDV') {
+      const rec = (raw.reconciliation ?? null) as SectionRdvView['reconciliation']
+      rdvs.push({
+        id: a.id,
+        name: a.name,
+        fetchedAt: a.fetchedAt.toISOString(),
+        sha256: a.sha256Official,
+        sourceUrl: a.sourceUrl,
+        format: (raw.format as string) ?? null,
+        office: (raw.office as string) ?? null,
+        ballotCount: Number(raw.ballotCount ?? 0),
+        tally: (raw.tally ?? null) as SectionRdvView['tally'],
+        reconciliation: rec,
+        warnings: (raw.warnings as string[]) ?? [],
+      })
+    } else {
+      const flags = (raw.flags ?? {}) as SectionUrnLogView['flags']
+      urnLogs.push({
+        id: a.id,
+        name: a.name,
+        fetchedAt: a.fetchedAt.toISOString(),
+        sha256: a.sha256Official,
+        sourceUrl: a.sourceUrl,
+        format: (raw.format as string) ?? null,
+        lineCount: Number(raw.lineCount ?? 0),
+        flags: {
+          zeresimaEmitted: Boolean(flags?.zeresimaEmitted),
+          votingStarted: Boolean(flags?.votingStarted),
+          votingEnded: Boolean(flags?.votingEnded),
+          buEmitted: Boolean(flags?.buEmitted),
+        },
+        notable: ((raw.notable ?? []) as SectionUrnLogView['notable']).slice(0, 100),
+        warnings: (raw.warnings as string[]) ?? [],
+      })
+    }
+  }
+  return { rdvs, urnLogs }
 }
 
 export interface IncidentFilters {
