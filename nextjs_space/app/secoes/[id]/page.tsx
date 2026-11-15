@@ -239,6 +239,7 @@ export default async function SectionDetailPage({ params }: { params: Promise<{ 
                   <FlagChip on={l.flags.votingStarted} label="Votação iniciada" />
                   <FlagChip on={l.flags.votingEnded} label="Votação encerrada" />
                   <FlagChip on={l.flags.buEmitted} label="BU emitido" />
+                  <FlagChip on={l.flags.manualRelease} label="Liberação manual" />
                 </div>
                 {l.notable?.length > 0 && (
                   <div className="mt-3">

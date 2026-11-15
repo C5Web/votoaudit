@@ -5,11 +5,13 @@
 import { Prisma, type SectionStatus, type IncidentSeverity, type IncidentStatus, type AuditEventType } from '@prisma/client'
 import { prisma } from './db'
 import { publicSourceLabel } from './constants'
+import { getActiveElection } from './election-config'
 
 export const OPEN_INCIDENT_STATUSES: IncidentStatus[] = ['DETECTED', 'AUTOMATED_CHECK', 'NEEDS_REVIEW', 'CORROBORATING']
 
+/** Eleição corrente resolvida dinamicamente (sem hardcode de ano/turno). */
 export async function getCurrentElection() {
-  return prisma.election.findFirst({ where: { year: 2026, round: 1 } })
+  return getActiveElection()
 }
 
 export async function getOverview() {
@@ -321,7 +323,7 @@ export interface SectionUrnLogView {
   sourceUrl: string | null
   format: string | null
   lineCount: number
-  flags: { zeresimaEmitted: boolean; votingStarted: boolean; votingEnded: boolean; buEmitted: boolean }
+  flags: { zeresimaEmitted: boolean; votingStarted: boolean; votingEnded: boolean; buEmitted: boolean; manualRelease: boolean }
   notable: { timestamp: string | null; level: string | null; tag: string | null; message: string }[]
   warnings: string[]
 }
@@ -369,6 +371,7 @@ export async function getSectionUrnArtifacts(sectionId: string): Promise<{ rdvs:
           votingStarted: Boolean(flags?.votingStarted),
           votingEnded: Boolean(flags?.votingEnded),
           buEmitted: Boolean(flags?.buEmitted),
+          manualRelease: Boolean(flags?.manualRelease),
         },
         notable: ((raw.notable ?? []) as SectionUrnLogView['notable']).slice(0, 100),
         warnings: (raw.warnings as string[]) ?? [],

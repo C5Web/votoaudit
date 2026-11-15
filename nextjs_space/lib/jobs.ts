@@ -4,6 +4,7 @@ import { prisma } from './db'
 import { crossValidateSection, crossValidateAll } from './cross-validation'
 import { ingestCandidates, ingestOfficialBUs, ingestSections } from './tse-ingestor'
 import { importTseCalendar } from './tse-calendar'
+import { getActiveElection } from './election-config'
 
 export async function enqueueJob(type: JobType, payload: Prisma.InputJsonValue) {
   return prisma.jobQueue.create({ data: { type, payload } })
@@ -21,7 +22,7 @@ export async function processPendingJobs(limit = 20) {
     await prisma.jobQueue.update({ where: { id: job.id }, data: { status: 'PROCESSING', attempts: { increment: 1 } } })
     try {
       const p = (job.payload ?? {}) as Record<string, string>
-      const election = await prisma.election.findFirst({ where: { year: 2026, round: 1 } })
+      const election = await getActiveElection()
       const electionId = p?.electionId ?? election?.id ?? ''
       switch (job.type) {
         case 'CROSS_VALIDATE_SECTION':

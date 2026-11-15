@@ -300,6 +300,7 @@ export interface UrnLogParseResult {
     votingStarted: boolean
     votingEnded: boolean
     buEmitted: boolean
+    manualRelease: boolean
   }
   warnings: string[]
 }
@@ -312,6 +313,7 @@ const NOTABLE_PATTERNS: { tag: string; re: RegExp }[] = [
   { tag: 'VOTACAO_INICIO', re: /in[ií]cio da vota[cç][aã]o|habilitado.*vota|abertura.*vota/i },
   { tag: 'VOTACAO_FIM', re: /encerrad(a|o).*vota[cç][aã]o|t[eé]rmino da vota[cç][aã]o|fim da vota/i },
   { tag: 'BU', re: /boletim de urna|emiss[aã]o.*bu|impress[aã]o.*boletim/i },
+  { tag: 'LIBERACAO_MANUAL', re: /libera[cç][aã]o manual|habilita[cç][aã]o manual|mes[aá]rio.*(liber|habilit)|liberad[oa].*(mes[aá]rio|manual)|voto.*ap[oó]s.*(hor[aá]rio|encerr)/i },
   { tag: 'ALERTA', re: /\b(alerta|erro|falha|viola[cç][aã]o|tentativa)\b/i },
 ]
 
@@ -351,7 +353,7 @@ export function parseUrnLog(content: string): UrnLogParseResult {
       lineCount: 0,
       events: [],
       notable: [],
-      flags: { zeresimaEmitted: false, votingStarted: false, votingEnded: false, buEmitted: false },
+      flags: { zeresimaEmitted: false, votingStarted: false, votingEnded: false, buEmitted: false, manualRelease: false },
       warnings: ['Log vazio.'],
     }
   }
@@ -370,6 +372,7 @@ export function parseUrnLog(content: string): UrnLogParseResult {
       votingStarted: has('VOTACAO_INICIO'),
       votingEnded: has('VOTACAO_FIM'),
       buEmitted: has('BU'),
+      manualRelease: has('LIBERACAO_MANUAL'),
     },
     warnings,
   }

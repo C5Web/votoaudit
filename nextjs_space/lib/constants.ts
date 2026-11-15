@@ -211,3 +211,48 @@ export function sectionState(status?: string | null): EvidenceState {
   if (status === 'DIVERGENCE') return 'DIVERGENCE'
   return 'UNVERIFIED'
 }
+
+// ------------------------------------------------------------------
+// Rótulos das análises eleitorais (AnomalyFinding / UrnReplacement)
+// ------------------------------------------------------------------
+export const ANOMALY_TYPE_LABEL: Record<string, string> = {
+  VOTE_CEILING_EXCEEDED: 'Votos acima do previsto',
+  ZERO_VOTES_CANDIDATE: 'Zero votos para candidato',
+  AFTER_HOURS_VOTING: 'Votação após o horário',
+  MANUAL_RELEASE_AFTER_HOURS: 'Liberação manual do mesário',
+  LOW_ABSTENTION: 'Abstenção atipicamente baixa',
+  HIGH_ABSTENTION: 'Abstenção atipicamente alta',
+  SPIRIT_VOTE_PATTERN: 'Comparecimento quase total (atípico)',
+  VOTE_BUYING_PATTERN: 'Concentração atípica de votos',
+  SECOND_ROUND_SWING: 'Virada entre turnos',
+  ABSTENTION_SHIFT: 'Variação de abstenção entre turnos',
+  URN_REPLACED: 'Urna substituída/alterada',
+  OTHER: 'Outro',
+}
+
+export const ANOMALY_SCOPE_LABEL: Record<string, string> = {
+  SECTION: 'Seção',
+  ZONE: 'Zona',
+  MUNICIPALITY: 'Município',
+  UF: 'Estado (UF)',
+  REGION: 'Região',
+  NATIONAL: 'Nacional',
+}
+
+export const ANOMALY_STATUS_LABEL: Record<string, string> = {
+  DETECTED: 'Detectado',
+  NEEDS_REVIEW: 'Em análise',
+  CONFIRMED: 'Confirmado',
+  INCONCLUSIVE: 'Inconclusivo',
+  DISMISSED: 'Descartado',
+}
+
+export const URN_ISSUE_LABEL: Record<string, string> = {
+  ALTERED: 'Alterada',
+  DAMAGED: 'Danificada',
+  DEFECTIVE: 'Com defeito',
+  REPLACED: 'Substituída',
+  NOT_INSTALLED: 'Não instalada',
+  CONTINGENCY: 'Contingência',
+  OTHER: 'Outro',
+}

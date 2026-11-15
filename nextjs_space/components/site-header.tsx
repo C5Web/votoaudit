@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { LayoutDashboard, ListChecks, CalendarClock, AlertTriangle, Camera, LogIn, Menu, X, User, ShieldCheck, LogOut } from 'lucide-react'
+import { LayoutDashboard, ListChecks, CalendarClock, AlertTriangle, SearchCheck, Camera, LogIn, Menu, X, User, ShieldCheck, LogOut } from 'lucide-react'
 import { Logo } from './logo'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/secoes', label: 'Seções', icon: ListChecks },
   { href: '/eventos', label: 'Eventos', icon: CalendarClock },
   { href: '/incidentes', label: 'Incidentes', icon: AlertTriangle },
+  { href: '/analises', label: 'Análises', icon: SearchCheck },
 ]
 
 export function SiteHeader() {

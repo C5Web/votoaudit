@@ -83,6 +83,22 @@ O botão de login com Google **só aparece quando as duas credenciais são reais
 | `NOTIF_ID_CONVITE_PARA_O_VOTOAUDIT` | ✅ Para envio de convites | ID do tipo de notificação de convite de equipe. | Gerado ao registrar a notificação na plataforma |
 | `NOTIF_ID_ALERTAS_DE_AUDITORIA` | ✅ Para alertas | ID do tipo de notificação de alertas de auditoria. | Gerado ao registrar a notificação na plataforma |
 
+> **Ressalva importante — a Abacus.AI NÃO é obrigatória.** A plataforma Abacus.AI é apenas uma conveniência: ela entrega, atrás de uma única chave, quatro serviços que em qualquer outro ambiente você instala/contrata separadamente (IA/LLM, HTML→PDF, FFmpeg e envio de e-mail). Como este repositório é público, **a grande maioria das pessoas vai querer rodar localmente ou na própria infraestrutura, sem pagar a Abacus.AI**. Isso é totalmente possível — veja a seção abaixo.
+
+#### 3.4.1. Rodando sem a Abacus.AI (alternativas 100% open-source / self-hosted)
+
+Cada recurso abaixo pode ser substituído por uma ferramenta livre. A lógica de negócio da aplicação não depende da Abacus.AI; apenas as camadas de integração (em `lib/`) chamam esses serviços. Ao migrar o backend para o FastAPI na VPS, essas integrações são reescritas uma única vez.
+
+| Recurso (hoje via Abacus.AI) | Alternativa open-source / self-hosted | Como substituir |
+|------------------------------|---------------------------------------|-----------------|
+| **IA / LLM** (geração e análise de texto, OCR de imagens de BU/zerésima) | **Ollama** ou **llama.cpp** rodando modelos locais (ex.: Llama 3, Mistral, Qwen); ou qualquer provedor com API compatível com OpenAI (**OpenAI**, **Anthropic**, **Groq**, **Together**, **OpenRouter**) | A API da Abacus.AI é compatível com o formato OpenAI (`/v1/chat/completions`). Basta apontar `OPENAI_BASE_URL` para o seu endpoint (ex.: `http://localhost:11434/v1` do Ollama) e usar `OPENAI_API_KEY`. Para OCR local sem LLM: **Tesseract**. |
+| **HTML → PDF** (relatórios, comprovantes) | **Puppeteer** ou **Playwright** (Chromium headless) rodando no próprio servidor; ou **wkhtmltopdf** / **WeasyPrint** | Instale o Chromium e gere o PDF no backend (no FastAPI, `playwright` + `page.pdf()`). Em Node, `puppeteer-core` com um Chromium do sistema. Não é preciso serviço externo. |
+| **FFmpeg** (processamento de vídeo/áudio de evidências) | **FFmpeg** nativo (binário oficial, gratuito) | Instale o pacote `ffmpeg` no servidor e invoque por linha de comando/`fluent-ffmpeg`. É exatamente o mesmo FFmpeg — a Abacus.AI apenas o hospeda. |
+| **E-mail / notificações** (convites, alertas) | **Nodemailer** (Node) ou **smtplib** (Python) + **qualquer SMTP**: Gmail/Google Workspace, **Amazon SES**, **Mailgun**, **SendGrid**, **Postmark**, **Brevo**, ou um Postfix próprio | Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e envie direto por SMTP. Sem dependência da plataforma. |
+| **Notificações push (Web Push)** | **Já é self-contained** — usa o padrão **VAPID** (biblioteca `web-push`), sem serviço pago | Veja a seção 3.6. Basta gerar seu próprio par de chaves VAPID. |
+
+> **Resumo:** nenhum desses recursos exige a Abacus.AI. Para um ambiente local típico você precisa apenas de: um modelo LLM local (ou chave de um provedor), Chromium (para PDF), o binário do FFmpeg e um servidor SMTP. Todas as variáveis acima são **placeholders** — preencha com os seus próprios valores no `.env` e **nunca** versione segredos reais.
+
 ### 3.5. Armazenamento de arquivos (S3) — uploads (obrigatório para upload de evidências)
 
 Os arquivos enviados (fotos de BU, zerésima, documentos de verificação) ficam em um bucket S3 privado, na pasta `uploads/`. Documentos de verificação de identidade são apagados automaticamente 30 dias após a decisão (LGPD).
@@ -141,6 +157,7 @@ Os modelos ficam em `prisma/schema.prisma`. Visão geral:
 | Eleições e seções | `Election` (enum `ElectionStatus`), `ElectionSection` (enum `SectionStatus`) |
 | Evidências e urnas | `Evidence`, `BallotBoxBulletin`, `Zeresima`, `AVPARTReport`, `OfficialArtifact` (enums de validação, `BUSource`, `ArtifactType`, etc.) |
 | Auditoria / incidentes | `AuditEvent`, `Incident`, `CrossValidationResult` (enums de severidade, categoria, status, confiança) |
+| Análises eleitorais | `AnomalyFinding`, `UrnReplacement` (enums `AnomalyType`, `AnomalyScope`, `AnomalyStatus`, `UrnIssueType`) |
 | Processamento | `JobQueue` (enums `JobType`, `JobStatus`) |
 | Notificações | `PushSubscription`, `NotificationPreference`, `Notification` (enums `NotificationType`, `NotificationChannel`, `NotificationStatus`) |
 
