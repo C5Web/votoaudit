@@ -67,10 +67,23 @@ model Election {
   electionDate   DateTime
   status         ElectionStatus     @default(UPCOMING)
   officialSource String?
+  // Parâmetros de auditoria — configuráveis por eleição (nada hardcoded por ano).
+  // Horários de encerramento no fuso da eleição (HH:mm). O oficial histórico é 17:00;
+  // extendedCloseTime guarda uma prorrogação oficialmente autorizada (ex.: 2026 estendeu para 19:00).
+  officialCloseTime String        @default("17:00")
+  extendedCloseTime String?
+  timezone          String        @default("America/Sao_Paulo")
+  // Limiares de abstenção atípica (percentual). Abaixo de low = baixa atípica; acima de high = alta atípica.
+  abstentionLowPct  Float         @default(15)
+  abstentionHighPct Float         @default(35)
+  calendarSourceUrl String?
+  label             String?
   createdAt      DateTime           @default(now())
   sections       ElectionSection[]
   events         AuditEvent[]
   artifacts      OfficialArtifact[]
+  anomalies       AnomalyFinding[]
+  urnReplacements UrnReplacement[]
 
   @@unique([year, round])
 }
@@ -628,4 +641,105 @@ enum NotificationStatus {
   SENT
   FAILED
   SKIPPED
+}
+
+// ---------------------------------------------------------------
+// Análises automáticas de integridade e detecção de incoerências.
+// Vocabulário sempre NEUTRO: "possível irregularidade", "incoerência",
+// "divergência", "padrão atípico". Nunca uma conclusão de fraude.
+// Modelo próprio (e não Incident) porque muitas análises são regionais
+// (UF/município/zona), não ligadas a uma única seção.
+// ---------------------------------------------------------------
+
+model AnomalyFinding {
+  id           String           @id @default(cuid())
+  electionId   String
+  election     Election         @relation(fields: [electionId], references: [id])
+  round        Int?
+  type         AnomalyType
+  severity     IncidentSeverity @default(MEDIUM)
+  scope        AnomalyScope
+  uf           String?
+  municipality String?
+  zone         String?
+  sectionId    String?
+  candidate    String?
+  title        String
+  description  String
+  metric       Float?
+  detail       Json?
+  dedupeKey    String           @unique
+  status       AnomalyStatus    @default(DETECTED)
+  detectedAt   DateTime         @default(now())
+  createdAt    DateTime         @default(now())
+
+  @@index([electionId, type])
+  @@index([scope])
+  @@index([severity])
+}
+
+enum AnomalyType {
+  VOTE_CEILING_EXCEEDED
+  ZERO_VOTES_CANDIDATE
+  AFTER_HOURS_VOTING
+  MANUAL_RELEASE_AFTER_HOURS
+  LOW_ABSTENTION
+  HIGH_ABSTENTION
+  SPIRIT_VOTE_PATTERN
+  VOTE_BUYING_PATTERN
+  SECOND_ROUND_SWING
+  ABSTENTION_SHIFT
+  URN_REPLACED
+  OTHER
+}
+
+enum AnomalyScope {
+  SECTION
+  ZONE
+  MUNICIPALITY
+  UF
+  REGION
+  NATIONAL
+}
+
+enum AnomalyStatus {
+  DETECTED
+  NEEDS_REVIEW
+  CONFIRMED
+  INCONCLUSIVE
+  DISMISSED
+}
+
+/// Urnas alteradas, danificadas, com defeito ou substituídas, com a justificativa oficial.
+model UrnReplacement {
+  id            String       @id @default(cuid())
+  electionId    String
+  election      Election     @relation(fields: [electionId], references: [id])
+  round         Int?
+  uf            String
+  municipality  String?
+  zone          String
+  section       String
+  sectionId     String?
+  ballotBoxId   String?
+  issueType     UrnIssueType
+  justification String
+  occurredAt    DateTime?
+  sourceUrl     String?
+  externalKey   String?      @unique
+  rawData       Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([electionId, uf])
+  @@index([issueType])
+}
+
+enum UrnIssueType {
+  ALTERED
+  DAMAGED
+  DEFECTIVE
+  REPLACED
+  NOT_INSTALLED
+  CONTINGENCY
+  OTHER
 }
