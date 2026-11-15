@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, ShieldAlert, CalendarClock, Users, Cog, Loader2, Database, GitCompare, RefreshCw, Play, FileCheck2, BadgeCheck, MailPlus, ScrollText, Ban, RotateCcw, Vote, CheckCircle2 } from 'lucide-react'
+import { LayoutDashboard, ShieldAlert, CalendarClock, Users, Cog, Loader2, Database, GitCompare, RefreshCw, Play, FileCheck2, BadgeCheck, MailPlus, ScrollText, Ban, RotateCcw, Vote, CheckCircle2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -149,6 +149,21 @@ export function AdminPanel({ overview, incidents, events, collectors, viewerRole
     }
   }
 
+  const runClearDemo = async () => {
+    const ok = window.confirm(
+      'Remover TODOS os dados de demonstração da eleição corrente?\n\n' +
+        'Serão apagados apenas os dados fictícios de teste: seções de demonstração, ' +
+        'boletins, evidências, zerésimas e incidentes dessas seções, artefatos ilustrativos ' +
+        '(candidatos fictícios, RDV, logs de urna, hashes de exemplo), achados de anomalia e ' +
+        'substituições de urna de teste, eventos de demonstração e contas de coletores de ' +
+        'demonstração.\n\n' +
+        'Serão PRESERVADOS: a geografia real das seções, o calendário oficial do TSE e as contas ' +
+        'administrativas reais.\n\nEsta ação não pode ser desfeita. Deseja continuar?',
+    )
+    if (!ok) return
+    await runOp('clear-demo', '/api/internal/ingest/clear-demo')
+  }
+
   const loadJobs = async () => {
     setBusy('jobs')
     try {
@@ -232,6 +247,13 @@ export function AdminPanel({ overview, incidents, events, collectors, viewerRole
             ))}
           </div>
           {lastResult && <pre className="mt-4 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{lastResult}</pre>}
+        </div>
+        <div className="rounded-lg border border-destructive/30 bg-card p-5 shadow-sm">
+          <h2 className="font-semibold text-destructive">Limpar dados de demonstração</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Remove automaticamente apenas os dados fictícios de teste da eleição corrente, deixando o banco limpo para receber somente os dados reais. Preserva a geografia real das seções, o calendário oficial do TSE e as contas administrativas. Equivale ao inverso do Re-seed de demonstração.</p>
+          <Button variant="destructive" disabled={!!busy} onClick={runClearDemo}>
+            {busy === 'clear-demo' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />} Limpar dados de demonstração
+          </Button>
         </div>
         <div className="rounded-lg bg-card p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
